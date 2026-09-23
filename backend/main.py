@@ -1064,6 +1064,17 @@ def get_anomalies(
             "If true, normal transactions are excluded"
         ),
     ),
+    limit: int = Query(
+        default=50,
+        ge=1,
+        le=500,
+        description="Maximum number of anomalies to return",
+    ),
+    offset: int = Query(
+        default=0,
+        ge=0,
+        description="Number of anomalies to skip",
+    ),
 ):
     """
     Return transaction-level anomaly detection results.
@@ -1313,6 +1324,13 @@ def get_anomalies(
     # --------------------------------------------------------
     # RESPONSE
     # --------------------------------------------------------
+    # --------------------------------------------------------
+    # PAGINATION
+    # --------------------------------------------------------
+
+    anomalies = anomalies.iloc[
+        offset:offset + limit
+    ] 
 
     return dataframe_to_records(
         anomalies.reset_index(
