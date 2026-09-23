@@ -404,54 +404,33 @@ def load_moq_table(
     file_path: Path,
 ) -> pd.DataFrame:
     """
-    Load supplier MOQ / order-multiple table.
+    Load IEK supplier order-multiple table.
+
+    Real IEK source columns:
+        Код 1с
+        Артикул поставщика
+        Наименование
+        Мин. разр. к отгр.
 
     Normalized output:
         sku
         moq
 
-    In the current project, the value from the supplier's
-    "Кратность" column is treated as an order multiple.
-
-    Example:
-        sku         moq
-        030200874   20
-        030200875   10
+    'Мин. разр. к отгр.' is treated as the supplier
+    order/shipment multiple.
     """
 
     # --------------------------------------------------------
-    # 1. Detect real Excel header
+    # 1. Detect header
     # --------------------------------------------------------
 
-    possible_required_sets = [
-        ["номенклатура", "кратность"],
-        ["код", "кратность"],
-        ["артикул", "кратность"],
-    ]
-
-    header_row = None
-    last_error = None
-
-    for required_words in possible_required_sets:
-
-        try:
-            header_row = detect_header_row(
-                file_path=file_path,
-                required_words=required_words,
-            )
-
-            break
-
-        except ValueError as error:
-            last_error = error
-
-    if header_row is None:
-        raise ValueError(
-            f"Could not detect MOQ header in "
-            f"{file_path.name}. "
-            f"Expected a SKU/code column and "
-            f"a 'Кратность' column."
-        ) from last_error
+    header_row = detect_header_row(
+        file_path=file_path,
+        required_words=[
+            "код 1с",
+            "мин. разр. к отгр.",
+        ],
+    )
 
     # --------------------------------------------------------
     # 2. Read Excel
@@ -469,93 +448,45 @@ def load_moq_table(
     ]
 
     # --------------------------------------------------------
-    # 3. Find SKU column
+    # 3. Find real columns
     # --------------------------------------------------------
 
-    sku_candidates = [
-        "Номенклатура.Код",
-        "Код",
-        "Артикул",
-    ]
-
     sku_column = None
+    moq_column = None
 
-    for candidate in sku_candidates:
+    for column in df.columns:
 
-        if candidate in df.columns:
-            sku_column = candidate
-            break
+        normalized = (
+            str(column)
+            .strip()
+            .lower()
+        )
 
-    # Fallback:
-    # search by column text.
-    if sku_column is None:
+        if normalized == "код 1с":
+            sku_column = column
 
-        for column in df.columns:
-
-            column_lower = (
-                str(column)
-                .strip()
-                .lower()
-            )
-
-            if (
-                "код" in column_lower
-                or "артикул" in column_lower
-            ):
-                sku_column = column
-                break
+        if (
+            "мин" in normalized
+            and "разр" in normalized
+            and "отгр" in normalized
+        ):
+            moq_column = column
 
     if sku_column is None:
         raise ValueError(
-            f"Could not find SKU/code column "
+            f"Could not find 'Код 1с' "
+            f"in {file_path.name}"
+        )
+
+    if moq_column is None:
+        raise ValueError(
+            f"Could not find "
+            f"'Мин. разр. к отгр.' "
             f"in {file_path.name}"
         )
 
     # --------------------------------------------------------
-    # 4. Find order-multiple column
-    # --------------------------------------------------------
-
-    moq_column = None
-
-    preferred_names = [
-        "Кратность",
-        "MOQ",
-        "Мок",
-        "Мин. партия",
-        "Минимальная партия",
-    ]
-
-    for candidate in preferred_names:
-
-        if candidate in df.columns:
-            moq_column = candidate
-            break
-
-    if moq_column is None:
-
-        for column in df.columns:
-
-            column_lower = (
-                str(column)
-                .strip()
-                .lower()
-            )
-
-            if (
-                "кратност" in column_lower
-                or column_lower == "moq"
-            ):
-                moq_column = column
-                break
-
-    if moq_column is None:
-        raise ValueError(
-            f"Could not find MOQ / Кратность "
-            f"column in {file_path.name}"
-        )
-
-    # --------------------------------------------------------
-    # 5. Normalize
+    # 4. Normalize
     # --------------------------------------------------------
 
     result = df[
@@ -583,7 +514,7 @@ def load_moq_table(
     )
 
     # --------------------------------------------------------
-    # 6. Remove invalid rows
+    # 5. Remove invalid rows
     # --------------------------------------------------------
 
     result = result.dropna(
@@ -593,13 +524,12 @@ def load_moq_table(
         ]
     ).copy()
 
-    # Order multiple cannot be zero or negative.
     result = result[
         result["moq"] > 0
     ].copy()
 
     # --------------------------------------------------------
-    # 7. One value per SKU
+    # 6. One value per SKU
     # --------------------------------------------------------
 
     result = (
@@ -613,9 +543,7 @@ def load_moq_table(
 
     return result
 
-# ============================================================
-# GOODS IN TRANSIT LOADER
-# ============================================================
+
 
 def load_in_transit_table(
     file_path: Path,

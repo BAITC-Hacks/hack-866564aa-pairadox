@@ -579,6 +579,17 @@ def get_recommendations(
             "Return only SKUs with recommended_qty > 0"
         ),
     ),
+        limit: int = Query(
+        default=50,
+        ge=1,
+        le=500,
+        description="Maximum number of recommendations",
+    ),
+    offset: int = Query(
+        default=0,
+        ge=0,
+        description="Number of recommendations to skip",
+    ),
 ):
     """
     Return procurement recommendations.
@@ -691,6 +702,10 @@ def get_recommendations(
                 recommended_qty > 0
             ]
         )
+
+    recommendations = recommendations.iloc[
+        offset:offset + limit
+    ]
 
     return dataframe_to_records(
         recommendations
