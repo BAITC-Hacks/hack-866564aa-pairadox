@@ -2,9 +2,13 @@ import type { Recommendation } from "../types/recommendation";
 
 interface Props {
   recommendations: Recommendation[];
+  onSelect: (recommendation: Recommendation) => void;
 }
 
-export default function RecommendationTable({ recommendations }: Props) {
+export default function RecommendationTable({
+  recommendations,
+  onSelect,
+}: Props) {
   return (
     <div
       className="table-container"
@@ -30,7 +34,16 @@ export default function RecommendationTable({ recommendations }: Props) {
         <tbody>
           {recommendations.map((item) => (
             <tr key={item.sku}>
-              <th scope="row">{item.sku}</th>
+              <th scope="row">
+  <button
+    type="button"
+    className="sku-button"
+    onClick={() => onSelect(item)}
+    aria-label={`View recommendation for ${item.sku}`}
+  >
+    {item.sku}
+  </button>
+</th>
               <td>{item.product_name}</td>
               <td>{item.supplier}</td>
               <td>{item.current_stock}</td>
